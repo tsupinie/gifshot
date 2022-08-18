@@ -77,6 +77,16 @@
                   </div>
                 </div>
                 <div class="form-group">
+                  <label for="ncolors">Num Colors</label>
+                  <div class="button custom-select">
+                    <select name="ncolors" id="ncolors" class="form-control">
+                      <option value="256">256</option>
+                      <option value="128">128</option>
+                      <option value="64">64</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group">
                   <label for="filter">Filter</label>
                   <div class="input-group">
                     <input name="filter" id="filter" class="form-control" value="" type="text"></input>
@@ -160,6 +170,15 @@
                   <label for="numWorkers">Num Workers</label>
                   <input name="numWorkers" id="numWorkers" class="form-control" value="2" size="5" type="number"></input>
                 </div>
+                <div class="form-group">
+                  <label for="makeTransparentFrames">Make Transparent Frames</label>
+                  <div class="button custom-select">
+                    <select name="makeTransparentFrames" id="makeTransparentFrames" class="form-control">
+                        <option value="">no</option>
+                        <option value="true">yes</option>
+                      </select>
+                    </div>
+                  </div>
               </form>
             </div>
             <div class="col-md-5 text-center code-section">

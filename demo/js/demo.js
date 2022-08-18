@@ -10,6 +10,7 @@
     var frameDuration = document.querySelector("#frameDuration");
     var gifHeight = document.querySelector("#gifHeight");
     var gifWidth = document.querySelector("#gifWidth");
+    var ncolors = document.querySelector("#ncolors");
     var progressBar = document.querySelector("progress");
     var text = document.querySelector('#gifText');
     var fontWeight = document.querySelector('#fontWeight');
@@ -20,6 +21,7 @@
     var textBaseline = document.querySelector('#textBaseline');
     var sampleInterval = document.querySelector('#sampleInterval');
     var numWorkers = document.querySelector('#numWorkers');
+    var makeTransparentFrames = document.querySelector('#makeTransparentFrames');
     var gifshotImagePreview = document.querySelector('.gifshot-image-preview-section');
     var placeholderDiv = document.querySelector('.placeholder-div');
     var placeholderDivDimensions = document.querySelector('.placeholder-div-dimensions');
@@ -31,6 +33,7 @@
             gifHeight: Number(gifHeight.value),
             images: gifSource.value === 'images' ? ['http://i.imgur.com/2OO33vX.png', 'http://i.imgur.com/qOwVaSN.png', 'http://i.imgur.com/Vo5mFZJ.gif'] : false,
             video: gifSource.value === 'video' ? ['example.mp4', 'example.ogv'] : false,
+            ncolors: Number(ncolors.value),
             filter: filter.value,
             interval: Number(interval.value),
             numFrames: Number(numFrames.value),
@@ -43,7 +46,8 @@
             textAlign: textAlign.value,
             textBaseline: textBaseline.value,
             sampleInterval: Number(sampleInterval.value),
-            numWorkers: Number(numWorkers.value)
+            numWorkers: Number(numWorkers.value),
+            makeTransparentFrames: Boolean(makeTransparentFrames.value)
         }
     };
     var passedOptions;
