@@ -170,6 +170,7 @@ AnimatedGIF.prototype = {
       frame.sampleInterval = sampleInterval;
       frame.beingProcessed = true;
       frame.gifshot = true;
+      frame.ncolors = this.options.ncolors;
 
       worker = this.getWorker();
 

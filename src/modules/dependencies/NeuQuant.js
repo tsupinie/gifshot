@@ -35,7 +35,7 @@
  */
 
 export default function NeuQuant () {
-    var netsize = 256; // number of colours used
+    var netsize = arguments[arguments.length - 1]; // number of colours used
 
     // four primes near 500 - assume no image has a length so large
     // that it is divisible by all four primes
