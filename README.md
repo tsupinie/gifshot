@@ -239,6 +239,11 @@ gifshot.takeSnapShot(function(obj) {
 'gifWidth': 200,
 // Desired height of the image
 'gifHeight': 200,
+// Number of colors in the color palette. Must be a power of 2, and 256 is the maximum.
+'ncolors': 256,
+// If you know certain colors will be in the image, and you don't want them to change, you can supply them
+// here as RGB tuples (e.g, [255, 255, 255] for white)
+'colorHints': [],
 // If this option is used, then a GIF will be created using these images
 // e.g. ['http://i.imgur.com/2OO33vX.jpg', 'http://i.imgur.com/qOwVaSN.png', 'http://i.imgur.com/Vo5mFZJ.gif'],
 // Note: Make sure these image resources are CORS enabled to prevent any cross-origin JavaScript errors
@@ -274,6 +279,14 @@ gifshot.takeSnapShot(function(obj) {
 'numFrames': 10,
 // The amount of time (10 = 1s) to stay on each frame
 'frameDuration': 1,
+// Change pixels that are the same color as the previous frame to transparent, so the previous frame shows
+// through. This can make a difference in file size.
+'makeTransparentFrames': false,
+// Frame disposal option. Relevant values are
+// 0: Uspecified (dispose normally)
+// 1: Do not dispose
+// If makeTransparentFrames is true, this option defaults to 1.
+'disposal': 0
 // The text that covers the animated GIF
 'text': '',
 // The font weight of the text that covers the animated GIF
