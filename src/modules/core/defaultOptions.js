@@ -20,6 +20,7 @@ const defaultOptions = {
     numFrames: 10,
     frameDuration: 1,
     ncolors: 256,
+    colorHints: [],
     keepCameraOn: false,
     images: [],
     video: null,

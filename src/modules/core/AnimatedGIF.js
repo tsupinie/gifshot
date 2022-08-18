@@ -171,6 +171,7 @@ AnimatedGIF.prototype = {
       frame.beingProcessed = true;
       frame.gifshot = true;
       frame.ncolors = this.options.ncolors;
+      frame.colorHints = this.options.colorHints;
 
       worker = this.getWorker();
 
