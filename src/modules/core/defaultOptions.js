@@ -21,6 +21,8 @@ const defaultOptions = {
     frameDuration: 1,
     ncolors: 256,
     colorHints: [],
+    disposal: 0,
+    makeTransparentFrames: false,
     keepCameraOn: false,
     images: [],
     video: null,

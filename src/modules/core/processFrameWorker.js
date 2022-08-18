@@ -25,14 +25,14 @@ export default function workerCode () {
     } catch (e) {};
 
     const workerMethods = {
-        dataToRGB: function (data, width, height, ignore_colors) {
+        dataToRGB: function (data, width, height, ignore_colors, use_transparency) {
             const length = width * height * 4;
             let i = 0;
             let rgb = [];
 
             while (i < length) {
                 let pix = data[i] << 16 | data[i + 1] << 8 | data[i + 2];
-                if (!ignore_colors.includes(pix)) {
+                if ((!use_transparency || data[i + 3] > 0) && !ignore_colors.includes(pix)) {
                     rgb.push(data[i++]);
                     rgb.push(data[i++]);
                     rgb.push(data[i++]);
@@ -61,38 +61,57 @@ export default function workerCode () {
             return paletteArray;
         },
         // This is the "traditional" Animated_GIF style of going from RGBA to indexed color frames
-        'processFrameWithQuantizer': function (imageData, width, height, sampleInterval, ncolors, colorHints) {
+        'processFrameWithQuantizer': function (imageData, width, height, sampleInterval, ncolors, colorHints, useTransparency) {
             const colorHintsPacked = colorHints.map(c => c[0] << 16 | c[1] << 8 | c[2]);
-            let rgbComponents = this.dataToRGB(imageData, width, height, colorHintsPacked);
+            let rgbComponents = this.dataToRGB(imageData, width, height, colorHintsPacked, useTransparency);
 
             let neuquant_colors = ncolors - colorHints.length;
+            if (useTransparency) {
+                neuquant_colors -= 1;
+            }
+
             let nq = new NeuQuant(rgbComponents, rgbComponents.length, sampleInterval, neuquant_colors);
             let paletteRGB = nq.process();
 
             let paletteArray = this.componentizedPaletteToArray(paletteRGB).concat(colorHintsPacked);
+            if (useTransparency) {
+                paletteArray = paletteArray.concat([0]);
+            }
+
             paletteArray = new Uint32Array(paletteArray);
             let numberPixels = width * height;
             let indexedPixels = new Uint8Array(numberPixels);
             let k = 0;
 
             for (let i = 0; i < numberPixels; i++) {
-                let pix = imageData[i * 4] << 16 | imageData[i * 4 + 1] << 8 | imageData[i * 4 + 2];
-                let chIndex = colorHintsPacked.indexOf(pix);
-                if (chIndex < 0) {
-                    let r = rgbComponents[k++];
-                    let g = rgbComponents[k++];
-                    let b = rgbComponents[k++];
-                    indexedPixels[i] = nq.map(r, g, b);
+                if (!useTransparency || imageData[i * 4 + 3] > 0) {
+                    let pix = imageData[i * 4] << 16 | imageData[i * 4 + 1] << 8 | imageData[i * 4 + 2];
+                    let chIndex = colorHintsPacked.indexOf(pix);
+                    if (chIndex < 0) {
+                        let r = rgbComponents[k++];
+                        let g = rgbComponents[k++];
+                        let b = rgbComponents[k++];
+                        indexedPixels[i] = nq.map(r, g, b);
+                    }
+                    else {
+                        indexedPixels[i] = neuquant_colors + chIndex;
+                    }
                 }
                 else {
-                    indexedPixels[i] = neuquant_colors + chIndex;
+                    indexedPixels[i] = ncolors - 1;
                 }
             }
 
-            return {
+            let ret_val = {
                 pixels: indexedPixels,
                 palette: paletteArray
-            };
+            }
+
+            if (useTransparency) {
+                ret_val.transparent_index = ncolors - 1;
+            }
+
+            return ret_val;
         },
         'run': function (frame) {
             frame = frame || {};
@@ -103,11 +122,12 @@ export default function workerCode () {
                 sampleInterval,
                 width,
                 ncolors,
-                colorHints
+                colorHints,
+                useTransparency
             } = frame;
             const imageData = frame.data;
 
-            return this.processFrameWithQuantizer(imageData, width, height, sampleInterval, ncolors, colorHints);
+            return this.processFrameWithQuantizer(imageData, width, height, sampleInterval, ncolors, colorHints, useTransparency);
         }
     };
 

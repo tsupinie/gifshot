@@ -34,6 +34,10 @@ export default function existingImages (obj = {}) {
         return callback(errorObj);
     }
 
+    if (options.disposal === undefined && options.makeTransparentFrames) {
+        options.disposal = 1;
+    }
+
     // change workerPath to point to where Animated_GIF.worker.js is
     ag = new AnimatedGIF(options);
 
@@ -121,6 +125,6 @@ export default function existingImages (obj = {}) {
             }
         });
 
-        getBase64GIF(ag, callback);
+        getBase64GIF(ag, options.makeTransparentFrames, callback);
     }
 };

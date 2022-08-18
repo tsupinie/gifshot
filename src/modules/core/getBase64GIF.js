@@ -7,9 +7,9 @@
  * Copyrights licensed under the MIT License. See the accompanying LICENSE file for terms.
 */
 
-export default function getBase64GIF (animatedGifInstance, callback) {
+export default function getBase64GIF (animatedGifInstance, makeTransparentFrames, callback) {
     // This is asynchronous, rendered with WebWorkers
-    animatedGifInstance.getBase64GIF((image) => {
+    animatedGifInstance.getBase64GIF(makeTransparentFrames, (image) => {
         callback({
             error: false,
             errorCode: '',

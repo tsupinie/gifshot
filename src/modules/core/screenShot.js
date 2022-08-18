@@ -144,7 +144,7 @@ const screenShot = {
               }
 
               if (!pendingFrames) {
-                  ag.getBase64GIF((image) => {
+                  ag.getBase64GIF(options.makeTransparentFrames, (image) => {
                       callback({
                         'error': false,
                         'errorCode': '',

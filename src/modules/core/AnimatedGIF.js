@@ -153,6 +153,7 @@ AnimatedGIF.prototype = {
           frame.palette = Array.prototype.slice.call(data.palette);
           frame.done = true;
           frame.beingProcessed = false;
+          frame.transparent_index = data.transparent_index;
 
           AnimatedGifContext.freeWorker(worker);
 
@@ -172,6 +173,7 @@ AnimatedGIF.prototype = {
       frame.gifshot = true;
       frame.ncolors = this.options.ncolors;
       frame.colorHints = this.options.colorHints;
+      frame.useTransparency = this.options.makeTransparentFrames;
 
       worker = this.getWorker();
 
@@ -243,7 +245,9 @@ AnimatedGIF.prototype = {
           for (let i = 0; i < frameDuration; i ++) {
               gifWriter.addFrame(0, 0, width, height, frame.pixels, {
                   palette: framePalette,
-                  delay: delay
+                  delay: delay,
+                  transparent: frame.transparent_index,
+                  disposal: options.disposal
               });
           }
       });
@@ -283,6 +287,7 @@ AnimatedGIF.prototype = {
           fontWeight,
           gifHeight,
           gifWidth,
+          makeTransparentFrames,
           text,
           textAlign,
           textBaseline,
@@ -302,6 +307,9 @@ AnimatedGIF.prototype = {
       try {
           ctx.filter = filter;
 
+          if (makeTransparentFrames) {
+            ctx.clearRect(0, 0, width, height);
+          }
           ctx.drawImage(element, 0, 0, width, height);
 
           if (textToUse) {
@@ -342,7 +350,21 @@ AnimatedGIF.prototype = {
   isRendering: function () {
       return this.generatingGIF;
   },
-  getBase64GIF: function (completeCallback) {
+  getBase64GIF: function (makeTransparentFrames, completeCallback) {
+      if (makeTransparentFrames) {
+        for (let ifrm = this.frames.length - 1; ifrm > 0; ifrm--) {
+          let this_frame = this.frames[ifrm].data;
+          let last_frame = this.frames[ifrm - 1].data;
+    
+          for (let ipx = 0; ipx < this_frame.length / 4; ipx++) {
+            if (this_frame[ipx * 4 + 0] == last_frame[ipx * 4 + 0] && 
+              this_frame[ipx * 4 + 1] == last_frame[ipx * 4 + 1] &&
+              this_frame[ipx * 4 + 2] == last_frame[ipx * 4 + 2]) {
+              this_frame[ipx * 4 + 3] = 0
+            }
+          }
+        }
+      }
       const self = this;
       const onRenderComplete = (gif) => {
           self.destroyWorkers();
