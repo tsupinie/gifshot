@@ -384,6 +384,10 @@ var defaultOptions = {
     interval: 0.1,
     numFrames: 10,
     frameDuration: 1,
+    ncolors: 256,
+    colorHints: [],
+    disposal: 0,
+    makeTransparentFrames: false,
     keepCameraOn: false,
     images: [],
     video: null,
@@ -535,7 +539,7 @@ function isExistingVideoGIFSupported(codecs) {
  */
 
 function NeuQuant() {
-  var netsize = 256; // number of colours used
+  var netsize = arguments[arguments.length - 1]; // number of colours used
 
   // four primes near 500 - assume no image has a length so large
   // that it is divisible by all four primes
@@ -1099,16 +1103,21 @@ function workerCode() {
     } catch (e) {}
 
     var workerMethods = {
-        dataToRGB: function dataToRGB(data, width, height) {
+        dataToRGB: function dataToRGB(data, width, height, ignore_colors, use_transparency) {
             var length = width * height * 4;
             var i = 0;
             var rgb = [];
 
             while (i < length) {
-                rgb.push(data[i++]);
-                rgb.push(data[i++]);
-                rgb.push(data[i++]);
-                i++; // for the alpha channel which we don't care about
+                var pix = data[i] << 16 | data[i + 1] << 8 | data[i + 2];
+                if ((!use_transparency || data[i + 3] > 0) && !ignore_colors.includes(pix)) {
+                    rgb.push(data[i++]);
+                    rgb.push(data[i++]);
+                    rgb.push(data[i++]);
+                    i++; // for the alpha channel which we don't care about
+                } else {
+                    i += 4;
+                }
             }
 
             return rgb;
@@ -1129,27 +1138,57 @@ function workerCode() {
             return paletteArray;
         },
         // This is the "traditional" Animated_GIF style of going from RGBA to indexed color frames
-        'processFrameWithQuantizer': function processFrameWithQuantizer(imageData, width, height, sampleInterval) {
-            var rgbComponents = this.dataToRGB(imageData, width, height);
-            var nq = new NeuQuant(rgbComponents, rgbComponents.length, sampleInterval);
+        'processFrameWithQuantizer': function processFrameWithQuantizer(imageData, width, height, sampleInterval, ncolors, colorHints, useTransparency) {
+            var colorHintsPacked = colorHints.map(function (c) {
+                return c[0] << 16 | c[1] << 8 | c[2];
+            });
+            var rgbComponents = this.dataToRGB(imageData, width, height, colorHintsPacked, useTransparency);
+
+            var neuquant_colors = ncolors - colorHints.length;
+            if (useTransparency) {
+                neuquant_colors -= 1;
+            }
+
+            var nq = new NeuQuant(rgbComponents, rgbComponents.length, sampleInterval, neuquant_colors);
             var paletteRGB = nq.process();
-            var paletteArray = new Uint32Array(this.componentizedPaletteToArray(paletteRGB));
+
+            var paletteArray = this.componentizedPaletteToArray(paletteRGB).concat(colorHintsPacked);
+            if (useTransparency) {
+                paletteArray = paletteArray.concat([0]);
+            }
+
+            paletteArray = new Uint32Array(paletteArray);
             var numberPixels = width * height;
             var indexedPixels = new Uint8Array(numberPixels);
             var k = 0;
 
             for (var i = 0; i < numberPixels; i++) {
-                var r = rgbComponents[k++];
-                var g = rgbComponents[k++];
-                var b = rgbComponents[k++];
-
-                indexedPixels[i] = nq.map(r, g, b);
+                if (!useTransparency || imageData[i * 4 + 3] > 0) {
+                    var pix = imageData[i * 4] << 16 | imageData[i * 4 + 1] << 8 | imageData[i * 4 + 2];
+                    var chIndex = colorHintsPacked.indexOf(pix);
+                    if (chIndex < 0) {
+                        var r = rgbComponents[k++];
+                        var g = rgbComponents[k++];
+                        var b = rgbComponents[k++];
+                        indexedPixels[i] = nq.map(r, g, b);
+                    } else {
+                        indexedPixels[i] = neuquant_colors + chIndex;
+                    }
+                } else {
+                    indexedPixels[i] = ncolors - 1;
+                }
             }
 
-            return {
+            var ret_val = {
                 pixels: indexedPixels,
                 palette: paletteArray
             };
+
+            if (useTransparency) {
+                ret_val.transparent_index = ncolors - 1;
+            }
+
+            return ret_val;
         },
         'run': function run(frame) {
             frame = frame || {};
@@ -1158,11 +1197,14 @@ function workerCode() {
                 height = _frame.height,
                 palette = _frame.palette,
                 sampleInterval = _frame.sampleInterval,
-                width = _frame.width;
+                width = _frame.width,
+                ncolors = _frame.ncolors,
+                colorHints = _frame.colorHints,
+                useTransparency = _frame.useTransparency;
 
             var imageData = frame.data;
 
-            return this.processFrameWithQuantizer(imageData, width, height, sampleInterval);
+            return this.processFrameWithQuantizer(imageData, width, height, sampleInterval, ncolors, colorHints, useTransparency);
         }
     };
 
@@ -1680,6 +1722,7 @@ AnimatedGIF.prototype = {
             frame.palette = Array.prototype.slice.call(data.palette);
             frame.done = true;
             frame.beingProcessed = false;
+            frame.transparent_index = data.transparent_index;
 
             AnimatedGifContext.freeWorker(worker);
 
@@ -1697,6 +1740,9 @@ AnimatedGIF.prototype = {
         frame.sampleInterval = sampleInterval;
         frame.beingProcessed = true;
         frame.gifshot = true;
+        frame.ncolors = this.options.ncolors;
+        frame.colorHints = this.options.colorHints;
+        frame.useTransparency = this.options.makeTransparentFrames;
 
         worker = this.getWorker();
 
@@ -1767,7 +1813,9 @@ AnimatedGIF.prototype = {
             for (var i = 0; i < frameDuration; i++) {
                 gifWriter$$1.addFrame(0, 0, width, height, frame.pixels, {
                     palette: framePalette,
-                    delay: delay
+                    delay: delay,
+                    transparent: frame.transparent_index,
+                    disposal: options.disposal
                 });
             }
         });
@@ -1807,6 +1855,7 @@ AnimatedGIF.prototype = {
             fontWeight = _gifshotOptions.fontWeight,
             gifHeight = _gifshotOptions.gifHeight,
             gifWidth = _gifshotOptions.gifWidth,
+            makeTransparentFrames = _gifshotOptions.makeTransparentFrames,
             text = _gifshotOptions.text,
             textAlign = _gifshotOptions.textAlign,
             textBaseline = _gifshotOptions.textBaseline,
@@ -1825,6 +1874,9 @@ AnimatedGIF.prototype = {
         try {
             ctx.filter = filter;
 
+            if (makeTransparentFrames) {
+                ctx.clearRect(0, 0, width, height);
+            }
             ctx.drawImage(element, 0, 0, width, height);
 
             if (textToUse) {
@@ -1867,7 +1919,19 @@ AnimatedGIF.prototype = {
     isRendering: function isRendering() {
         return this.generatingGIF;
     },
-    getBase64GIF: function getBase64GIF(completeCallback) {
+    getBase64GIF: function getBase64GIF(makeTransparentFrames, completeCallback) {
+        if (makeTransparentFrames) {
+            for (var ifrm = this.frames.length - 1; ifrm > 0; ifrm--) {
+                var this_frame = this.frames[ifrm].data;
+                var last_frame = this.frames[ifrm - 1].data;
+
+                for (var ipx = 0; ipx < this_frame.length / 4; ipx++) {
+                    if (this_frame[ipx * 4 + 0] == last_frame[ipx * 4 + 0] && this_frame[ipx * 4 + 1] == last_frame[ipx * 4 + 1] && this_frame[ipx * 4 + 2] == last_frame[ipx * 4 + 2]) {
+                        this_frame[ipx * 4 + 3] = 0;
+                    }
+                }
+            }
+        }
         var self = this;
         var onRenderComplete = function onRenderComplete(gif) {
             self.destroyWorkers();
@@ -1906,9 +1970,9 @@ AnimatedGIF.prototype = {
  * Copyrights licensed under the MIT License. See the accompanying LICENSE file for terms.
 */
 
-function getBase64GIF(animatedGifInstance, callback) {
+function getBase64GIF(animatedGifInstance, makeTransparentFrames, callback) {
     // This is asynchronous, rendered with WebWorkers
-    animatedGifInstance.getBase64GIF(function (image) {
+    animatedGifInstance.getBase64GIF(makeTransparentFrames, function (image) {
         callback({
             error: false,
             errorCode: '',
@@ -1948,6 +2012,10 @@ function existingImages() {
 
     if (errorObj.error) {
         return callback(errorObj);
+    }
+
+    if (options.disposal === undefined && options.makeTransparentFrames) {
+        options.disposal = 1;
     }
 
     // change workerPath to point to where Animated_GIF.worker.js is
@@ -2037,7 +2105,7 @@ function existingImages() {
             }
         });
 
-        getBase64GIF(ag, callback);
+        getBase64GIF(ag, options.makeTransparentFrames, callback);
     }
 }
 
@@ -2186,7 +2254,7 @@ var screenShot = {
                 }
 
                 if (!pendingFrames) {
-                    ag.getBase64GIF(function (image) {
+                    ag.getBase64GIF(options.makeTransparentFrames, function (image) {
                         callback({
                             'error': false,
                             'errorCode': '',
